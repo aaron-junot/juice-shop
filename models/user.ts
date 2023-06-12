@@ -5,6 +5,7 @@
 
 /* jslint node: true */
 import config from 'config'
+import crypto from 'crypto'
 import {
   InferAttributes,
   InferCreationAttributes,
@@ -34,9 +35,9 @@ InferCreationAttributes<User>
   declare isActive: CreationOptional<boolean>
 }
 
-const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start weakPasswordChallenge
+const UserModelInit = (sequelize: Sequelize) => { 
   User.init(
-    { // vuln-code-snippet hide-start
+    {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
@@ -46,12 +47,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
         type: DataTypes.STRING,
         defaultValue: '',
         set (username: string) {
-          if (!utils.disableOnContainerEnv()) {
-            username = security.sanitizeLegacy(username)
-          } else {
-            username = security.sanitizeSecure(username)
-          }
-          this.setDataValue('username', username)
+          this.setDataValue('username', security.sanitizeSecure(username))
         }
       },
       email: {
@@ -70,13 +66,13 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
           }
           this.setDataValue('email', email)
         }
-      }, // vuln-code-snippet hide-end
+      },
       password: {
         type: DataTypes.STRING,
-        set (clearTextPassword) {
-          this.setDataValue('password', security.hash(clearTextPassword)) // vuln-code-snippet vuln-line weakPasswordChallenge
+        set (clearTextPassword: any) {
+          this.setDataValue('password', crypto.createHash('md5').update(clearTextPassword).digest('hex'))
         }
-      }, // vuln-code-snippet end weakPasswordChallenge
+      },
       role: {
         type: DataTypes.STRING,
         defaultValue: 'customer',
@@ -126,19 +122,6 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
     }
   )
 
-  User.addHook('afterValidate', (user: User) => {
-    if (
-      user.email &&
-    user.email.toLowerCase() ===
-      `acc0unt4nt@${config.get('application.domain')}`.toLowerCase()
-    ) {
-      return Promise.reject(
-        new Error(
-          'Nice try, but this is not how the "Ephemeral Accountant" challenge works!'
-        )
-      )
-    }
-  })
 }
 
 export { User as UserModel, UserModelInit }
